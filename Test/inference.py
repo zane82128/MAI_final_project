@@ -1,3 +1,4 @@
+import argparse
 import torch
 import time
 import traceback
@@ -7,14 +8,30 @@ from torchvision.io import decode_image
 from Network.vggt import get_VGGT
 from Accelerate.vggt import accelerate_vggt, Accelerator_Config
 
-# ============= Configuration =============
-image_dir = Path("./datasets/ETH3D/botanical_garden/images/dslr_images")
-seq_l = 16
-infer_shape = (27 * 14, 36 * 14)  # 378 x 504
-accelerator_path = Path("./Model/VGGT_Accelerator/checkpoint.pth")
-output_dir = Path("./inference_outputs")
+parser = argparse.ArgumentParser(description="Run VGGT + CoMe inference on an ETH3D scene.")
+parser.add_argument("--scene", type=str, default="botanical_garden", help="ETH3D scene name under datasets/ETH3D/")
+parser.add_argument("--dataset_root", type=Path, default=Path("./datasets/ETH3D"), help="Root to ETH3D dataset.")
+parser.add_argument("--image_dir", type=Path, default=None, help="Override image directory path.")
+parser.add_argument("--seq_l", type=int, default=16, help="Sequence length.")
+parser.add_argument("--infer_height", type=int, default=27 * 14, help="Inference height (must be divisible by 14).")
+parser.add_argument("--infer_width", type=int, default=36 * 14, help="Inference width (must be divisible by 14).")
+parser.add_argument("--accelerator", type=Path, default=Path("./Model/VGGT_Accelerator/checkpoint.pth"))
+parser.add_argument("--result_dir", type=Path, default=None, help="Directory where outputs are saved. Defaults to ./inference_outputs/<scene>.")
+parser.add_argument("--patch_size", type=int, default=14)
+args = parser.parse_args()
+
+# ============= Configuration (derived) =============
+if args.image_dir is not None:
+    image_dir = args.image_dir
+else:
+    image_dir = args.dataset_root / args.scene / "images" / "dslr_images"
+
+seq_l = args.seq_l
+infer_shape = (args.infer_height, args.infer_width)
+accelerator_path = args.accelerator
+output_dir = args.result_dir if args.result_dir is not None else Path("./inference_outputs") / args.scene
 output_dir.mkdir(parents=True, exist_ok=True)
-patch_size = 14  # VGGT uses a fixed 14x14 patch size
+patch_size = args.patch_size  # VGGT uses a fixed 14x14 patch size internally
 
 
 total_start = time.time()
@@ -148,14 +165,14 @@ try:
     print(f"[Save] Writing inference outputs to {output_dir}", flush=True)
     save_start = time.time()
     
-    # Derive scene name from path, e.g., botanical_garden
-    scene_name = image_dir.parent.parent.name
-    result_subdir = output_dir / scene_name
-    result_subdir.mkdir(parents=True, exist_ok=True)
+    # Derive scene name, defaulting to CLI argument
+    scene_name = args.scene or image_dir.parent.parent.name
+    result_subdir = output_dir
     
     # Move come_mask to CPU for serialization (if available)
     come_mask_cpu = come_mask.cpu() if come_mask is not None else None
     come_mask_retention_ratio = None
+    come_mask_grid_shape = None
     if come_mask_cpu is not None and isinstance(come_mask_cpu, torch.Tensor):
         come_mask_retention_ratio = float(come_mask_cpu.float().mean())
         batch_size = depth.shape[0]
@@ -197,6 +214,9 @@ try:
             "image_dir": str(image_dir),
             "depth_conf_range": [float(depth_conf.min()), float(depth_conf.max())],
             "come_mask_retention_ratio": come_mask_retention_ratio,
+            "patch_size": patch_size,
+            "confidence_patch_grid": (infer_shape[0] // patch_size, infer_shape[1] // patch_size),
+            "come_mask_patch_grid": come_mask_grid_shape,
         }
     }
     

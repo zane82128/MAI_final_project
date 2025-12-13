@@ -48,6 +48,11 @@ def _resize_mask(mask: np.ndarray, target_shape: tuple[int, int] | None) -> np.n
 def load_results(result_dir: Path):
     """Load inference tensors and metadata."""
     depth_conf = torch.load(result_dir / "depth_conf.pt")
+    patch_conf = None
+    patch_conf_path = result_dir / "depth_conf_patch.pt"
+    if patch_conf_path.exists():
+        patch_conf = torch.load(patch_conf_path)
+
     come_mask = None
     mask_path = result_dir / "come_mask.pt"
     if mask_path.exists():
@@ -59,12 +64,13 @@ def load_results(result_dir: Path):
     full_result = torch.load(result_files[0])
     metadata = full_result.get("metadata", {})
 
-    return depth_conf, come_mask, metadata
+    return depth_conf, come_mask, patch_conf, metadata
 
 
 def visualize_confidence_map(
     depth_conf: torch.Tensor,
     output_dir: Path,
+    title_prefix: str = "VGGT Confidence Map",
     frame_indices: list[int] | None = None,
 ) -> list[Path]:
     """Render a confidence map for each frame."""
@@ -83,7 +89,7 @@ def visualize_confidence_map(
 
         fig, ax = plt.subplots(figsize=(8, 6), dpi=120)
         im = ax.imshow(conf_normalized, cmap="jet", origin="upper")
-        ax.set_title(f"VGGT Confidence Map #{idx:02d}", fontsize=13, fontweight="bold")
+        ax.set_title(f"{title_prefix} #{idx:02d}", fontsize=13, fontweight="bold")
         plt.colorbar(im, ax=ax, label=f"Confidence [{conf_min:.3f} - {conf_max:.3f}]")
         ax.set_xlabel("Width")
         ax.set_ylabel("Height")
@@ -202,12 +208,16 @@ def main(args):
         raise FileNotFoundError(f"Result directory not found: {result_dir}")
 
     print(f"Loading results from {result_dir}")
-    depth_conf, come_mask, metadata = load_results(result_dir)
+    depth_conf, come_mask, patch_conf, metadata = load_results(result_dir)
     print(f"Confidence map shape: {tuple(depth_conf.shape)}")
     if come_mask is not None:
         print(f"CoMe mask shape: {tuple(come_mask.shape)}")
     else:
         print("Warning: come_mask.pt not found; only confidence maps will be generated")
+    if patch_conf is not None:
+        print(f"Patch-averaged confidence shape: {tuple(patch_conf.shape)}")
+    else:
+        print("Note: depth_conf_patch.pt not found; run Test/pool_confidence.py to generate patch-level tensors")
 
     frames_conf = _extract_frames(depth_conf)
     seq_len = frames_conf.shape[0]
@@ -215,12 +225,23 @@ def main(args):
 
     viz_dir = result_dir / "visualizations"
     conf_dir = viz_dir / "confidence_maps"
+    pooled_conf_dir = viz_dir / "confidence_maps_patch"
     mask_dir = viz_dir / "come_masks"
     cmp_dir = viz_dir / "comparisons"
 
     print("\nGenerating confidence maps...")
-    conf_paths = visualize_confidence_map(depth_conf, conf_dir)
+    conf_paths = visualize_confidence_map(depth_conf, conf_dir, title_prefix="VGGT Confidence Map")
     print(f"   -> Saved {len(conf_paths)} images")
+
+    pooled_paths: list[Path] = []
+    if patch_conf is not None:
+        print("Generating patch-averaged confidence maps...")
+        pooled_paths = visualize_confidence_map(
+            patch_conf,
+            pooled_conf_dir,
+            title_prefix="Patch-Averaged VGGT Confidence",
+        )
+        print(f"   -> Saved {len(pooled_paths)} images")
 
     mask_paths: list[Path] = []
     if come_mask is not None and not isinstance(come_mask, dict):
@@ -242,6 +263,8 @@ def main(args):
 
     print(f"\nDone. Outputs stored in {viz_dir}")
     print(f"   - {conf_dir}")
+    if pooled_paths:
+        print(f"   - {pooled_conf_dir}")
     if mask_paths:
         print(f"   - {mask_dir}")
     print(f"   - {cmp_dir}")
