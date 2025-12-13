@@ -1,6 +1,7 @@
 import logging
 import numpy as np
 import torch
+import time
 import open3d as o3d
 import pypose as pp
 from pathlib import Path
@@ -26,14 +27,20 @@ class ETH3D_MVS_Dataset(MVSDataset):
         scenes_paths = [Path(self.root, scene) for scene in self.SCENE_NAMES]
 
         samples = []
-        for scene_path in scenes_paths:
+        total_scenes = len(scenes_paths)
+        dataset_start = time.perf_counter()
+        print(f"[ETH3D_MVS] Sampling sequences from {total_scenes} scenes under {self.root}")
+        for scene_idx, scene_path in enumerate(scenes_paths, start=1):
+            scene_start = time.perf_counter()
             try:
                 scene_data = self._load_scene_data(scene_path)
                 if scene_data is None:
+                    print(f"[ETH3D_MVS] {scene_path.name:<15} -> skipped (missing data)")
                     continue
 
                 # Sample sequences from this scene
                 image_ids = list(scene_data['images'].keys())
+                before = len(samples)
                 for start_idx in range(0, len(image_ids) - self.seql + 1, self.seql):
                     sequence_ids = image_ids[start_idx:start_idx + self.seql]
                     samples.append({
@@ -41,10 +48,19 @@ class ETH3D_MVS_Dataset(MVSDataset):
                         'scene_data': scene_data,
                         'sequence_ids': sequence_ids
                     })
+                scene_sequences = len(samples) - before
+                elapsed_scene = time.perf_counter() - scene_start
+                elapsed_total = time.perf_counter() - dataset_start
+                print(
+                    f"[ETH3D_MVS] {scene_path.name:<15} -> +{scene_sequences:3d} sequences "
+                    f"({len(samples)} total) | scene {scene_idx}/{total_scenes} | "
+                    f"{elapsed_scene:5.1f}s scene / {elapsed_total:6.1f}s total"
+                )
             except Exception as e:
                 logger.warning(f"Failed to load scene {scene_path.name}: {e}")
                 continue
 
+        print(f"[ETH3D_MVS] Prepared {len(samples)} sequences in {time.perf_counter() - dataset_start:.1f}s")
         return samples
 
     def _load_scene_data(self, scene_path: Path) -> Optional[Dict]:

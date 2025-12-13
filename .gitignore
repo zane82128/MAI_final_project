@@ -1,3 +1,5 @@
+datasets/
+Model/local_cache
 # For yt-dlp for RE-10K dataset
 my_cookies.txt
 .torch_cache/

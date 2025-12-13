@@ -1,5 +1,7 @@
-import torch
 import json
+import os
+import itertools
+import torch
 from pathlib import Path
 from Network.vggt import VGGT
 from dataclasses import dataclass
@@ -59,6 +61,13 @@ def accelerate_vggt(model: VGGT, cfg: Accelerator_Config):
     
     predictor.load_state_dict(torch.load(cfg.accelerator))
     predictor = predictor.bfloat16().eval().to("cuda")
+
+    conf_dump_dir_env = os.getenv("COME_CONF_SAVE_DIR", "confidence_dumps")
+    conf_dump_dir = None
+    if conf_dump_dir_env:
+        conf_dump_dir = Path(conf_dump_dir_env).expanduser()
+        conf_dump_dir.mkdir(parents=True, exist_ok=True)
+    conf_dump_counter = itertools.count()
     
     # Methods
     def context_management(original_forward):
@@ -104,7 +113,16 @@ def accelerate_vggt(model: VGGT, cfg: Accelerator_Config):
                     confidence = predictor(lean_tokens.bfloat16(), (state.BSCHW[0], state.BSCHW[1], tok_H, tok_W, lean_tokens.size(-1)))
                 
                 confidence = confidence.squeeze(-1).float()
-                # torch.save(confidence, "confidence.pth")
+                if conf_dump_dir is not None:
+                    dump_idx = next(conf_dump_counter)
+                    dump_path = conf_dump_dir / f"confidence_{dump_idx:06d}.pth"
+                    torch.save({
+                        "confidence": confidence.detach().cpu(),
+                        "BSCHW": state.BSCHW,
+                        "tok_hw": (tok_H, tok_W),
+                        "grp_size": cfg.grp_size,
+                        "probe_loc": probe_loc
+                    }, dump_path)
                 
                 confidence = confidence.reshape(lean_tokens.size(0), lean_tokens.size(1)//cfg.grp_size, cfg.grp_size).mean(dim=-1)
                 

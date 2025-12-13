@@ -3,4 +3,5 @@ from .mvs_dataset import ETH3D_MVS_Dataset
 from .interface import ETH3D_DepthDataset, ETH3D_MVSDataset
 
 # Default ETH3D dataset root path
-default_root = "{YOUR_PATH_TO}/ETH3D"
+# default_root = "{YOUR_PATH_TO}/ETH3D"
+default_root = "/home/zane82128/MAI/final_project/CoMe/datasets/ETH3D"

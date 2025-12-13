@@ -1,6 +1,7 @@
 import logging
 import numpy as np
 import torch
+import time
 from pathlib import Path
 from typing import Optional, Union, Callable
 from torchvision.io import decode_image
@@ -24,7 +25,11 @@ class ETH3D_Depth_Dataset(DepthDataset):
         scenes_paths = [Path(self.root, scene) for scene in self.SCENE_NAMES]
         
         samples = []
-        for scene_path in scenes_paths:
+        total_scenes = len(scenes_paths)
+        dataset_start = time.perf_counter()
+        print(f"[ETH3D_Depth] Sampling sequences from {total_scenes} scenes under {self.root}")
+        for scene_idx, scene_path in enumerate(scenes_paths, start=1):
+            scene_start = time.perf_counter()
             depth_root = Path(scene_path, "ground_truth_depth", "dslr_images")
             image_root = Path(scene_path, "images", "dslr_images")
             
@@ -35,9 +40,19 @@ class ETH3D_Depth_Dataset(DepthDataset):
             common_pred  = lambda x: x.name in common_names
             pairs        = list(zip(filter(common_pred, depth_files), filter(common_pred, image_files)))
             
+            before = len(samples)
             for start_idx in range(0, len(pairs) - self.seql, self.seql):
                 samples.append(pairs[start_idx:start_idx+self.seql])
+            scene_sequences = len(samples) - before
+            elapsed_scene = time.perf_counter() - scene_start
+            elapsed_total = time.perf_counter() - dataset_start
+            print(
+                f"[ETH3D_Depth] {scene_path.name:<15} -> +{scene_sequences:3d} sequences "
+                f"({len(samples)} total) | scene {scene_idx}/{total_scenes} | "
+                f"{elapsed_scene:5.1f}s scene / {elapsed_total:6.1f}s total"
+            )
         
+        print(f"[ETH3D_Depth] Prepared {len(samples)} sequences in {time.perf_counter() - dataset_start:.1f}s")
         return samples
 
     def __len__(self) -> int: return len(self.samples)

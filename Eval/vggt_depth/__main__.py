@@ -64,7 +64,7 @@ def get_model(args):
 def main(args):    
     data            = get_dataset(args)
     model, get_mask = get_model(args)
-    depth_evaluate(model, data, EvalauteConfig(infer_shape=(27 * 14, 36 * 14)), args.result, args.masks, get_mask)
+    depth_evaluate(model, data, EvalauteConfig(infer_shape=(27 * 14, 36 * 14), dataset_name=args.dataset), args.result, args.masks, get_mask)
 
 
 if __name__ == "__main__":

@@ -65,7 +65,8 @@ def main():
         "terrains",
     ]
     # Additional available modalities: dslr_raw scan_raw scan_clean scan_eval dslr_occlusion
-    datas = ["dslr_jpg", "dslr_undistorted", "dslr_depth"]
+    # datas = ["dslr_jpg", "dslr_undistorted", "dslr_depth"]
+    datas = ["dslr_depth"]
 
     print(f"Downloading ETH3D dataset to {target}")
 

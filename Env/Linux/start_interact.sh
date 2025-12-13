@@ -36,4 +36,4 @@ else
 fi
 
 echo "Starting service: ${SERVICE}"
-docker compose run --rm --service-ports "${SERVICE}" bash
+docker compose run --rm --service-ports -v ${HOME}/.cache:/home/ubuntu/.cache "${SERVICE}" bash
