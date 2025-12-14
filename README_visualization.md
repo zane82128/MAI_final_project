@@ -43,3 +43,5 @@ This creates `visualizations/` inside the scene folder containing:
 - `comparisons/`: side-by-side panels (confidence + mask) for each frame.
 
 Repeat the command with different `--result_dir` values for other scenes. Use standard tools (e.g., `ffmpeg`, ImageMagick) if you want to stitch the PNGs into videos or GIFs.
+
+

@@ -1,6 +1,11 @@
 datasets/
 Model/local_cache
 inference_outputs
+ours_results
+README_experiments.md
+confidence_dumps
+.local
+courtyard
 # For yt-dlp for RE-10K dataset
 my_cookies.txt
 .torch_cache/
@@ -17,7 +22,9 @@ wandb/
 Result
 *.png
 *.jpg
-
+*.pth
+*.json
+*.JPG
 # C extensions
 *.so
 
